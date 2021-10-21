@@ -1,0 +1,117 @@
+2. Sample code:
+#include "common.h"
+#include <cuda_runtime.h>
+#include <stdio.h>
+
+__device__ float devData[5];
+
+__global__ void checkGlobalVariable()
+{
+    int tid = (int)threadIdx.x;
+    // display the original value
+    printf("Device: the value of the global variable at index %d is %f\n", tid, devData[tid]);
+
+    // alter the value
+    devData[tid] *= tid;
+}
+
+int main(void)
+{
+    // initialize the global variable
+    float value[5] = {3.14f, 3.14f, 3.14f, 3.14f, 3.14f};
+    CHECK(cudaMemcpyToSymbol(devData, value, 5*sizeof(float)));
+
+    // invoke the kernel
+    checkGlobalVariable<<<1, 5>>>();
+
+    // copy the global variable back to the host
+    CHECK(cudaMemcpyFromSymbol(value, devData, 5*sizeof(float)));
+    for (int i = 0; i < 5; i++)
+        printf("Host:   the value at index %d changed by the kernel to %f\n", i, value[i]);
+
+    CHECK(cudaDeviceReset());
+    return EXIT_SUCCESS;
+}
+
+3. Sample code:
+__global__ void sumArrays(float *A, float *B, float *C, const int N, int offset)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x + offset;
+
+    if (i < N) C[i] = A[i] + B[i];
+}
+
+__global__ void sumArraysZeroCopy(float *A, float *B, float *C, const int N, int offset)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x + offset;
+
+    if (i < N) C[i] = A[i] + B[i];
+}
+
+4. Sample code:
+__global__ void readWriteOffsetUnroll4(float *A, float *B, float *C,
+                            const int n, int offset)
+{
+    unsigned int i = blockIdx.x * blockDim.x * 4 + threadIdx.x;
+    unsigned int k = i + offset;
+
+    if (k + 3 * blockDim.x < n)
+    {
+        C[k]                  = A[k]                  + B[k];
+        C[k + blockDim.x]     = A[k + blockDim.x]     + B[k + blockDim.x];
+        C[k + 2 * blockDim.x] = A[k + 2 * blockDim.x] + B[k + 2 * blockDim.x];
+        C[k + 3 * blockDim.x] = A[k + 3 * blockDim.x] + B[k + 3 * blockDim.x];
+    }
+}
+
+5. Sample code:
+__global__ void transposeUnroll8Row(float *out, float *in, const int nx,
+                                    const int ny)
+{
+    unsigned int ix = blockDim.x * blockIdx.x * 8 + threadIdx.x;
+    unsigned int iy = blockDim.y * blockIdx.y + threadIdx.y;
+
+    unsigned int ti = iy * nx + ix; // access in rows
+    unsigned int to = ix * ny + iy; // access in columns
+
+    if (ix + 7 * blockDim.x < nx && iy < ny)
+    {
+        out[to]                   = in[ti];
+        out[to + ny * blockDim.x]   = in[ti + blockDim.x];
+        out[to + ny * 2 * blockDim.x] = in[ti + 2 * blockDim.x];
+        out[to + ny * 3 * blockDim.x] = in[ti + 3 * blockDim.x];
+        out[to + ny * 4 * blockDim.x] = in[ti + 4 * blockDim.x];
+        out[to + ny * 5 * blockDim.x] = in[ti + 5 * blockDim.x];
+        out[to + ny * 6 * blockDim.x] = in[ti + 6 * blockDim.x];
+        out[to + ny * 7 * blockDim.x] = in[ti + 7 * blockDim.x];
+    }
+}
+
+6. Sample code:
+__global__ void transposeDiagonalColUnroll4(float *out, float *in, const int nx,
+                                     const int ny)
+{
+    unsigned int blk_y = blockIdx.x;
+    unsigned int blk_x = (blockIdx.x + blockIdx.y) % gridDim.x;
+
+    unsigned int ix_stride = blockDim.x * blk_x;
+    unsigned int ix = ix_stride * 4 + threadIdx.x;
+    unsigned int iy = blockDim.y * blk_y + threadIdx.y;
+
+    if (ix < nx && iy < ny)
+    {
+        out[iy * nx + ix] = in[ix * ny + iy];
+        out[iy * nx + ix + blockDim.x] = in[(ix + blockDim.x) * ny + iy];
+        out[iy * nx + ix + 2 * blockDim.x] =
+            in[(ix + 2 * blockDim.x) * ny + iy];
+        out[iy * nx + ix + 3 * blockDim.x] =
+            in[(ix + 3 * blockDim.x) * ny + iy];
+    }
+}
+
+7. 
+Data transfer latency (CPU to GPU): 3GB / (16GB/s) = 0.1875 s
+Kernel execution time: (2K/1K)*(10*100cycles*1ns/cycle) = 0.000002 s (assuming multiply-add operations are fully overlapped with global memory accesses)
+Data transfer latency (GPU tp CPU): 1GB / (16GB/s) = 0.0625 s
+Therefore, the total execution time is 0.250002 s.
+Other reasonable answers are also correct (e.g., the students may consider overlapped global memory accesses)

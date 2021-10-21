@@ -1,0 +1,57 @@
+3. Sample code:
+// invoke with offset=1
+__global__ void test_shfl_wrap (int *d_out, int *d_in, int const offset)
+{
+    int value = d_in[threadIdx.x];
+    value = __shfl(value, threadIdx.x + offset, BDIMX);
+    d_out[threadIdx.x] = 2 * value;
+}
+
+4. Sample code:
+// invoke with mask=1
+__global__ void test_shfl_xor(int *d_out, int *d_in, int const mask)
+{
+    int value = d_in[threadIdx.x];
+    value += __shfl_xor (value, mask, BDIMX);
+    d_out[threadIdx.x] = value;
+}
+
+6. Sample code:
+__global__ void test_shfl_wrap_double (double *d_out, double *d_in,
+        int const offset)
+{
+    // Assumes that a double is twice the size of an int
+    int *iptr = (int *)d_in;
+    int *optr = (int *)d_out;
+
+    // Shuffle first half of the double
+    optr[2 * threadIdx.x] = __shfl(iptr[2 * threadIdx.x], threadIdx.x + offset,
+            BDIMX);
+    // Shuffle second half of the double
+    optr[2 * threadIdx.x + 1] = __shfl(iptr[2 * threadIdx.x + 1],
+            threadIdx.x + offset, BDIMX);
+}
+
+7. Sample code:
+__inline__ __device__ int warpReduce(int localSum)
+{
+    localSum += __shfl_down(localSum, 1);
+    localSum += __shfl_down(localSum, 2);
+    localSum += __shfl_down(localSum, 4);
+    localSum += __shfl_down(localSum, 8);
+    localSum += __shfl_down(localSum, 16);
+
+    return localSum;
+}
+
+This is also correct:
+__inline__ __device__ int warpReduce(int localSum)
+{
+    localSum += __shfl_down(localSum, 16);
+    localSum += __shfl_down(localSum, 8);
+    localSum += __shfl_down(localSum, 4);
+    localSum += __shfl_down(localSum, 2);
+    localSum += __shfl_down(localSum, 1);
+
+    return localSum;
+}

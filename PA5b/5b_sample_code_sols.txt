@@ -1,0 +1,47 @@
+3. Sample code: 
+Replace "int" with "float" for the 2 kernels and for initializing the data:
+
+1) Replace "__global__ void reduceInterleaved (int *g_idata, int *g_odata, unsigned int n)"
+with "__global__ void reduceInterleaved_float (float *g_idata, float *g_odata, unsigned int n)"
+
+2) Replace "__global__ void reduceUnrolling8 (int *g_idata, int *g_odata, unsigned int n)" with "__global__ void reduceUnrolling8_float (float *g_idata, float *g_odata, unsigned int n)". Replace "int a.." with "float a..". Replace "int b.." with "float b..".
+
+3) Also use "float" in the initialization, e.g.:
+    // allocate host memory
+    size_t bytes = size * sizeof(float);
+    float *h_idata = (float *) malloc(bytes);
+    float *h_odata = (float *) malloc(grid.x * sizeof(float));
+    
+    // initialize the array
+    for (int i = 0; i < size; i++)
+    {
+        // mask off high 2 bytes to force max number to 255
+        h_idata[i] = (float)( rand() & 0xFF );
+    }
+
+    // allocate device memory
+    float *d_idata = NULL;
+    float *d_odata = NULL;
+    CHECK(cudaMalloc((void **) &d_idata, bytes));
+    CHECK(cudaMalloc((void **) &d_odata, grid.x * sizeof(float)));
+
+4. Sample code:
+__global__ void nestedHelloWorld(int const iSize, int iDepth)
+{
+    int tid = threadIdx.x;
+    printf("Recursion=%d: Hello World from thread %d block %d\n", iDepth, tid,
+           blockIdx.x);
+
+    // condition to stop recursive execution
+    if (iSize == 1) return;
+
+    // reduce block size to half
+    int nthreads = iSize >> 1;
+
+    // thread 0 launches child grid recursively
+    if(tid == 0 && blockIdx.x == 0 && nthreads > 0)
+    {
+        nestedHelloWorld<<<2, nthreads>>>(nthreads, ++iDepth);
+        printf("-------> nested execution depth: %d\n", iDepth);
+    }
+}

@@ -1,0 +1,28 @@
+4. Sample code:
+__global__ void sumArraysOnGPU_3elements(float *A, float *B, float *C, const int N)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (3*i < N) C[3*i] = A[3*i] + B[3*i];
+    if (3*i+1 < N) C[3*i+1] = A[3*i+1] + B[3*i+1];
+    if (3*i+2 < N) C[3*i+2] = A[3*i+2] + B[3*i+2];
+}
+
+5. Sample code:
+// grid 2D block 1D
+// matrix size is (nx, ny)
+// as specified in main(), grid.y is always ny
+__global__ void sumMatrixOnGPUMix_3elements(float *MatA, float *MatB, float *MatC, int nx,
+                                  int ny)
+{
+    unsigned int ix = 3*(threadIdx.x + blockIdx.x * blockDim.x);
+    unsigned int iy = blockIdx.y;
+    unsigned int idx = iy * nx + ix;
+
+    if (ix < nx && iy < ny)
+        MatC[idx] = MatA[idx] + MatB[idx];
+    if (ix+1 < nx && iy < ny)
+        MatC[idx+1] = MatA[idx+1] + MatB[idx+1];
+    if (ix+2 < nx && iy < ny)
+        MatC[idx+2] = MatA[idx+2] + MatB[idx+2];
+}
